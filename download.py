@@ -1,4 +1,4 @@
-import requests, yaml
+import requests, yaml, os
 
 modConfig = yaml.safe_load(open('mods.yaml'))
 
@@ -11,54 +11,66 @@ def getModFromModrinth(id, modLoader, mcVersion, versionType='release'):
             return releases[0]['files'][0]['filename'], releases[0]['files'][0]['url']
     return None
 
+os.makedirs('mods', exist_ok=True)
+
 for mod in modConfig['mods']:
     filename, url = None, None
     print(mod['id'], mod['type'])
+
     if mod['type'] == 'modrinth':
-        modFile = getModFromModrinth(
-            mod['id'],
-            modConfig['modLoader'],
-            modConfig['mcVersion'],
-            mod.get('versionType', 'release')
-        )
-        if not modFile:
-            modFile = getModFromModrinth(
-                mod['id'],
-                modConfig['modLoader'],
-                modConfig['mcVersion'],
-                'beta'
-            )
-            print(f'!! Found beta version for {mod["id"]}')
-        if not modFile and 'mcCompatibles' in modConfig:
+        found = False
+        mod_id = mod['id']
+        loader = modConfig['modLoader']
+        current_version = modConfig['mcVersion']
+        version_type = mod.get('versionType', 'release')
+        modFile = getModFromModrinth(mod_id, loader, current_version, version_type)
+        if modFile:
+            filename, url = modFile
+            found = True
+        else:
+            modFile = getModFromModrinth(mod_id, loader, current_version, 'beta')
+            if modFile:
+                filename, url = modFile
+                found = True
+                print(f'!! Found beta version for {mod_id} on {current_version}')
+        if not found and 'mcCompatibles' in modConfig:
             for mcVersion in modConfig['mcCompatibles']:
-                version_type = mod.get('versionType', 'release')
-                modFile = getModFromModrinth(
-                    mod['id'],
-                    modConfig['modLoader'],
-                    mcVersion,
-                    version_type
-                )
+                modFile = getModFromModrinth(mod_id, loader, mcVersion, version_type)
+                if not modFile:
+                    modFile = getModFromModrinth(mod_id, loader, mcVersion, 'beta')
                 if modFile:
-                    print(f'!! Found mod for {mcVersion} using compatible version {mcVersion}')
-                    filename, url = modFile
+                    print(f'!! Found mod for {mod_id} on compatible version {mcVersion}')
+                    found = True
                     break
             else:
-                print(f'!! Failed to find mod {mod["id"]} in any compatible version')
+                print(f'Failed to find mod {mod_id} in any version')
                 continue
-        elif not modFile:
-            print(f'!! Failed to find mod {mod["id"]} for Minecraft {modConfig["mcVersion"]}')
-            continue
         filename, url = modFile
     elif mod['type'] == 'github' and mod.get('repo'):
         r = requests.get(f'https://api.github.com/repos/{mod["repo"]}/releases')
         releases = r.json()
-        versionFilter, releaseFilter = None, None
+        versionInFileName, releaseFilter, versionInRelease = False, None, False
         if mod.get('releaseFilter'):
             releases = [x for x in releases if mod['releaseFilter'] in x['name']]
             if releases:
                 jarFile = [x for x in releases[0]['assets'] if x['name'].endswith('.jar')]
                 if jarFile:
                     filename, url = jarFile[0]['name'], jarFile[0]['browser_download_url']
+        elif mod.get('versionInRelease'):
+            releases = [x for x in releases if modConfig['mcVersion'] in x['name']]
+            if releases:
+                jarFile = [x for x in releases[0]['assets'] if x['name'].endswith('.jar')]
+                if jarFile:
+                    filename, url = jarFile[0]['name'], jarFile[0]['browser_download_url']
+            else:
+                for version in modConfig['mcCompatibles']:
+                    releases = [x for x in releases if version in x['name']]
+                    if releases:
+                        jarFile = [x for x in releases[0]['assets'] if x['name'].endswith('.jar')]
+                        if jarFile:
+                            filename, url = jarFile[0]['name'], jarFile[0]['browser_download_url']
+                            print(f'!! Found mod using compatible version {version}')
+                        break
         elif mod.get('versionInFileName'):
             versionFilter = modConfig['mcVersion']
         elif mod.get('versionFilter'):

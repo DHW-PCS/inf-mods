@@ -1,7 +1,7 @@
-mcVersion: 1.21.7 # Minecraft version
+mcVersion: 1.21.8 # Minecraft version
 modLoader: fabric # The mod loader to use
 mcCompatibles: # Minecraft versions that are compatible
-  - 1.21.8
+  - 1.21.7
   - 1.21.6
 mods:
 - id: anti-xray
@@ -35,9 +35,9 @@ mods:
 - id: no-chat-reports
   type: modrinth
 - id: pca-protocol
-  type: github # 这是一个在 GitHub 上发布的模组
+  type: github
   repo: Fallen-Breath/pca-protocol
-  versionInFileName: true # 代表游戏版本号在模组文件名中
+  versionInFileName: true
 - id: servux
   type: modrinth
 - id: spark
