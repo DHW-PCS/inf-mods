@@ -1,0 +1,48 @@
+mcVersion: 1.21.7 # Minecraft version
+modLoader: fabric # The mod loader to use
+mcCompatibles: # Minecraft versions that are compatible
+  - 1.21.8
+  - 1.21.6
+mods:
+- id: anti-xray
+  type: modrinth
+- id: carpet
+  type: modrinth
+- id: carpet-ams-addition
+  type: modrinth
+- id: carpet-extra
+  type: modrinth
+- id: carpet-tis-addition
+  type: modrinth
+- id: debugify
+  type: modrinth
+- id: dynmap
+  type: modrinth
+- id: fabric-api
+  type: modrinth
+- id: fabric-language-kotlin
+  type: modrinth
+- id: fabricproxy-lite
+  type: modrinth
+- id: krypton
+  type: modrinth
+- id: ledger
+  type: modrinth
+- id: lithium
+  type: modrinth
+- id: luckperms
+  type: modrinth
+- id: no-chat-reports
+  type: modrinth
+- id: pca-protocol
+  type: github # 这是一个在 GitHub 上发布的模组
+  repo: Fallen-Breath/pca-protocol
+  versionInFileName: true # 代表游戏版本号在模组文件名中
+- id: servux
+  type: modrinth
+- id: spark
+  type: modrinth
+- id: tabtps
+  type: modrinth
+- id: vanilla-permissions
+  type: modrinth
