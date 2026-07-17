@@ -16,7 +16,7 @@ mods:
   type: modrinth
 - id: debugify
   type: modrinth
-- id: dynmap
+- id: bluemap
   type: modrinth
 - id: fabric-api
   type: modrinth
