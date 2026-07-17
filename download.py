@@ -15,7 +15,7 @@ os.makedirs('mods', exist_ok=True)
 
 for mod in modConfig['mods']:
     filename, url = None, None
-    print(mod['id'], mod['type'])
+    # print(mod['id'], mod['type'])
 
     if mod['type'] == 'modrinth':
         found = False
@@ -96,7 +96,7 @@ for mod in modConfig['mods']:
                         print(f'!! Found mod using compatible version {mcVersion}')
                         break
     if filename and url:
-        print(filename, url)
+        # print(filename, url)
         r = requests.get(url, allow_redirects=True)
         open('mods/' + filename, 'wb').write(r.content)
     else:

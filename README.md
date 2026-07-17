@@ -41,3 +41,26 @@ mods:
 > releaseFilter: "1.21.7"  # 筛选发布名称中包含该字符串的版本
 > ```  
 > (这部分内容还是💩，以后有机会再改进，~~反正能跑就行~~)
+
+---
+
+### 4. 模组详情页面 / Mod Details Page
+
+仓库包含一个由 `mods.yaml` 生成的静态模组详情页面。页面展示从 Modrinth 获取的模组名称，以及各模组最近支持的三个正式 Minecraft 版本；GitHub 模组的版本会按 `versionInFileName` 配置从 Release 的 JAR 文件名中提取。
+
+本地生成页面：
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 generate_site.py
+```
+
+生成结果位于 `_site/`。页面显示的“数据更新”时间采用 UTC+8。
+
+GitHub Actions 会在以下情况重新生成并部署页面：
+
+- 推送到 `main` 分支；
+- 从 Actions 页面手动运行；
+- 每天 03:17 UTC 自动运行。
+
+页面地址为：<https://dhw-pcs.github.io/inf-mods/>

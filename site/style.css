@@ -1,0 +1,160 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  color: #202124;
+  background: #f6f7f8;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f7f8;
+}
+
+.page {
+  width: min(100% - 24px, 880px);
+  margin: 32px auto;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 4vw, 2rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.updated-at,
+footer {
+  margin: 7px 0 0;
+  color: #667085;
+  font-size: 0.82rem;
+}
+
+.column-headings,
+.mod-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, auto);
+  gap: 20px;
+  align-items: center;
+}
+
+.column-headings {
+  padding: 0 14px 8px;
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.mod-list,
+.versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mod-list {
+  overflow: hidden;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.mod-row {
+  min-height: 48px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #eceff2;
+}
+
+.mod-row:last-child {
+  border-bottom: 0;
+}
+
+.mod-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #175cd3;
+  font-weight: 600;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.mod-name:focus-visible {
+  outline: 2px solid #175cd3;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.versions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.version {
+  padding: 3px 7px;
+  border: 1px solid #d8dee6;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: #344054;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.no-versions {
+  color: #8a94a3;
+  font-size: 0.8rem;
+}
+
+footer {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 600px) {
+  .page {
+    width: min(100% - 20px, 880px);
+    margin: 22px auto;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+  }
+
+  .column-headings {
+    display: none;
+  }
+
+  .mod-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+
+  .versions {
+    justify-content: flex-start;
+  }
+}

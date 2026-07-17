@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DHW Inf 服务器模组及其支持的最近游戏版本">
+  <title>DHW Inf 模组详情</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1>DHW Inf 模组详情</h1>
+      <p class="updated-at">数据更新：<time>{{UPDATED_AT}}</time></p>
+    </header>
+
+    <section aria-labelledby="mod-list-title">
+      <h2 id="mod-list-title" class="visually-hidden">模组及支持版本</h2>
+      <div class="column-headings" aria-hidden="true">
+        <span>模组名称</span>
+        <span>最近支持版本</span>
+      </div>
+      <ul class="mod-list">
+{{MOD_ROWS}}
+      </ul>
+    </section>
+
+    <footer>共 {{MOD_COUNT}} 个模组</footer>
+  </main>
+</body>
+</html>

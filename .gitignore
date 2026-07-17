@@ -1,3 +1,5 @@
 .venv
 .DS_Store
 mods*/
+_site/
+__pycache__/
