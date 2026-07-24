@@ -44,7 +44,88 @@ mods:
 
 ---
 
-### 4. 模组详情页面 / Mod Details Page
+### 4. 作为 Python 模块使用 / Python Module API
+
+`download.py` 可以直接导入；导入时不会读取配置、创建目录、访问网络或输出信息。批量下载会按配置顺序返回一个 `DownloadResult` 列表，单个模组失败不会中止其余下载。
+
+使用已解析的配置字典：
+
+```python
+from download import download_mods
+
+config = {
+    "mcVersion": "1.21.11",
+    "modLoader": "fabric",
+    "mods": [
+        {"id": "fabric-api", "type": "modrinth"},
+    ],
+}
+
+results = download_mods(config, output_dir="server-mods")
+for result in results:
+    if result.success:
+        print(result.mod_id, result.target_path)
+    else:
+        print(result.mod_id, result.error or "No matching file")
+```
+
+从 YAML 文件加载并下载：
+
+```python
+from download import download_from_file
+
+results = download_from_file("mods.yaml", output_dir="server-mods")
+```
+
+如果只需读取 YAML，可单独调用 `load_config("mods.yaml")` 获取配置字典。
+
+`download_mod()` 可处理单个配置项。所有网络相关函数均接受可选的 `session` 参数，调用方可以传入 `requests.Session()` 以复用连接或进行测试。
+
+服务器升级流程应显式传入目标 Minecraft 版本，并先下载到独立暂存目录：
+
+```python
+from download import download_mods_for_version, load_config
+
+config = load_config("mods.yaml")
+batch = download_mods_for_version(
+    config,
+    "1.21.12",
+    output_dir="staging/mods",
+)
+batch.raise_for_failures()
+```
+
+这个入口不会修改 `config`，也不会自动沿用其中面向旧服务器版本的 `mcCompatibles`。如果已确认某个旧版模组兼容新版，必须显式提供回退版本：
+
+```python
+batch = download_mods_for_version(
+    config,
+    "1.21.12",
+    output_dir="staging/mods",
+    compatible_versions=["1.21.11"],
+)
+```
+
+异步升级工作流可使用非阻塞包装：
+
+```python
+from download import async_download_mods_for_version
+
+batch = await async_download_mods_for_version(
+    config,
+    "1.21.12",
+    output_dir="staging/mods",
+)
+batch.raise_for_failures()
+```
+
+`DownloadBatchResult.success` 表示整个批次是否成功，`failures` 包含全部失败项，`as_dict()` 可直接交给 `json.dumps()`。`raise_for_failures()` 抛出的 `DownloadBatchError` 会通过其 `result` 属性保留完整批次，便于升级程序输出诊断后安全中止。
+
+直接执行 `python download.py` 时，程序仍会读取当前目录下的 `mods.yaml` 并将文件下载到 `mods/`。
+
+---
+
+### 5. 模组详情页面 / Mod Details Page
 
 仓库包含一个由 `mods.yaml` 生成的静态模组详情页面。页面展示从 Modrinth 获取的模组名称，以及各模组最近支持的三个正式 Minecraft 版本；GitHub 模组的版本会按 `versionInFileName` 配置从 Release 的 JAR 文件名中提取。
 

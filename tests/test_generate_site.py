@@ -19,6 +19,7 @@ class FakeResponse:
     def __init__(self, payload, status_code=200):
         self.payload = payload
         self.status_code = status_code
+        self.closed = False
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -26,6 +27,9 @@ class FakeResponse:
 
     def json(self):
         return self.payload
+
+    def close(self):
+        self.closed = True
 
 
 class FakeSession:

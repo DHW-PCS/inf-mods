@@ -1,8 +1,6 @@
 import argparse
 import html
-import json
 import os
-import re
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,18 +8,17 @@ from pathlib import Path
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
-import requests
 import yaml
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
-
-MODRINTH_API = "https://api.modrinth.com/v2"
-GITHUB_API = "https://api.github.com"
-REQUEST_TIMEOUT = 20
-USER_AGENT = "DHW-PCS/inf-mods site generator"
-MINECRAFT_VERSION_IN_FILENAME = re.compile(
-    r"(?:^|[-_])mc(\d+(?:\.\d+)+)(?=[-_.]|$)", re.IGNORECASE
+from mod_metadata import (
+    create_session,
+    extract_github_versions,
+    fetch_json,
+    get_github_versions,
+    get_modrinth_projects,
+    get_release_game_versions,
+    latest_modrinth_versions,
+    minecraft_version_key,
 )
 
 
@@ -32,101 +29,12 @@ class ModEntry:
     versions: list[str]
 
 
-def create_session() -> requests.Session:
-    session = requests.Session()
-    session.headers.update({"User-Agent": USER_AGENT})
-    retry = Retry(
-        total=3,
-        connect=3,
-        read=3,
-        status=3,
-        backoff_factor=0.5,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset(("GET",)),
-        raise_on_status=False,
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retry))
-    return session
-
-
-def fetch_json(session, url, *, params=None, headers=None, allow_not_found=False):
-    response = session.get(
-        url,
-        params=params,
-        headers=headers,
-        timeout=REQUEST_TIMEOUT,
-    )
-    if allow_not_found and response.status_code == 404:
-        return None
-    response.raise_for_status()
-    return response.json()
-
-
 def load_config(path: Path) -> dict:
     with path.open(encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
     if not isinstance(config, dict) or not isinstance(config.get("mods"), list):
         raise ValueError("mods.yaml must contain a mods list")
     return config
-
-
-def get_modrinth_projects(session, mod_ids: list[str]) -> dict[str, dict]:
-    projects = fetch_json(
-        session,
-        f"{MODRINTH_API}/projects",
-        params={"ids": json.dumps(mod_ids)},
-    )
-    by_identifier = {}
-    for project in projects:
-        by_identifier[project["id"]] = project
-        by_identifier[project["slug"]] = project
-    return by_identifier
-
-
-def get_release_game_versions(session) -> list[str]:
-    versions = fetch_json(session, f"{MODRINTH_API}/tag/game_version")
-    releases = [version for version in versions if version["version_type"] == "release"]
-    releases.sort(key=lambda version: version["date"], reverse=True)
-    return [version["version"] for version in releases]
-
-
-def latest_modrinth_versions(project: dict | None, release_order: list[str]) -> list[str]:
-    if project is None:
-        return []
-    supported = set(project.get("game_versions", []))
-    return [version for version in release_order if version in supported][:3]
-
-
-def minecraft_version_key(version: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in version.split("."))
-
-
-def extract_github_versions(releases: list[dict]) -> list[str]:
-    versions = set()
-    for release in releases:
-        for asset in release.get("assets", []):
-            asset_name = asset.get("name", "")
-            if not asset_name.lower().endswith(".jar"):
-                continue
-            match = MINECRAFT_VERSION_IN_FILENAME.search(asset_name)
-            if match:
-                versions.add(match.group(1))
-    return sorted(versions, key=minecraft_version_key, reverse=True)[:3]
-
-
-def get_github_versions(session, repo: str, github_token: str | None) -> list[str]:
-    headers = {"Accept": "application/vnd.github+json"}
-    if github_token:
-        headers["Authorization"] = f"Bearer {github_token}"
-        headers["X-GitHub-Api-Version"] = "2022-11-28"
-    releases = fetch_json(
-        session,
-        f"{GITHUB_API}/repos/{repo}/releases",
-        params={"per_page": 30},
-        headers=headers,
-        allow_not_found=True,
-    )
-    return extract_github_versions(releases or [])
 
 
 def collect_mod_entries(config: dict, session, github_token: str | None = None) -> list[ModEntry]:
