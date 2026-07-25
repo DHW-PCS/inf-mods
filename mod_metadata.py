@@ -25,8 +25,6 @@ __all__ = [
     "fetch_json",
     "get_github_releases",
     "get_github_versions",
-    "get_mod_from_modrinth",
-    "get_modrinth_project_versions",
     "get_modrinth_projects",
     "get_release_game_versions",
     "latest_modrinth_versions",
@@ -98,54 +96,6 @@ def get_modrinth_projects(
         by_identifier[project["id"]] = project
         by_identifier[project["slug"]] = project
     return by_identifier
-
-
-def get_modrinth_project_versions(
-    session: Any,
-    project_id: str,
-    mod_loader: str,
-    mc_version: str,
-    *,
-    timeout: int = REQUEST_TIMEOUT,
-) -> list[dict[str, Any]]:
-    """Return versions for one Modrinth project and game target."""
-
-    return fetch_json(
-        session,
-        f"{MODRINTH_API}/project/{project_id}/version",
-        params={
-            "loaders": f'["{mod_loader}"]',
-            "game_versions": f'["{mc_version}"]',
-        },
-        timeout=timeout,
-    )
-
-
-def get_mod_from_modrinth(
-    project_id: str,
-    mod_loader: str,
-    mc_version: str,
-    version_type: str = "release",
-    session: Any = requests,
-    *,
-    timeout: int = REQUEST_TIMEOUT,
-) -> tuple[str, str] | None:
-    """Return the first matching Modrinth file as ``(filename, URL)``."""
-
-    versions = get_modrinth_project_versions(
-        session,
-        project_id,
-        mod_loader,
-        mc_version,
-        timeout=timeout,
-    )
-    for version in versions:
-        if version.get("version_type") != version_type:
-            continue
-        files = version.get("files", [])
-        if files:
-            return files[0]["filename"], files[0]["url"]
-    return None
 
 
 def get_release_game_versions(

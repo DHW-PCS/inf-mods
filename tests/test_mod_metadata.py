@@ -6,7 +6,6 @@ from mod_metadata import (
     extract_github_versions,
     fetch_json,
     get_github_releases,
-    get_modrinth_project_versions,
     get_modrinth_projects,
     get_release_game_versions,
     latest_modrinth_versions,
@@ -68,20 +67,11 @@ class ModMetadataTests(unittest.TestCase):
         projects_response = FakeResponse(
             [{"id": "project-id", "slug": "project-slug"}]
         )
-        versions_response = FakeResponse([])
-        session = FakeSession([projects_response, versions_response])
+        session = FakeSession([projects_response])
 
         projects = get_modrinth_projects(session, ["project-slug"])
-        versions = get_modrinth_project_versions(
-            session,
-            "project-slug",
-            "fabric",
-            "1.21.11",
-            timeout=30,
-        )
 
         self.assertIs(projects["project-id"], projects["project-slug"])
-        self.assertEqual(versions, [])
         self.assertEqual(
             session.calls[0],
             (
@@ -90,20 +80,6 @@ class ModMetadataTests(unittest.TestCase):
                     "params": {"ids": '["project-slug"]'},
                     "headers": None,
                     "timeout": 20,
-                },
-            ),
-        )
-        self.assertEqual(
-            session.calls[1],
-            (
-                "https://api.modrinth.com/v2/project/project-slug/version",
-                {
-                    "params": {
-                        "loaders": '["fabric"]',
-                        "game_versions": '["1.21.11"]',
-                    },
-                    "headers": None,
-                    "timeout": 30,
                 },
             ),
         )
