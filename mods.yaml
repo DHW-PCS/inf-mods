@@ -36,10 +36,6 @@ mods:
   type: modrinth
 - id: no-chat-reports
   type: modrinth
-- id: pca-protocol
-  type: github
-  repo: Fallen-Breath/pca-protocol
-  versionInFileName: true
 - id: servux
   type: modrinth
 - id: spark
