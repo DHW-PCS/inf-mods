@@ -4,44 +4,107 @@ import requests
 
 from mod_metadata import (
     extract_github_versions,
+    manifest_release_versions,
+    release_minecraft_versions,
     fetch_json,
     get_github_releases,
+    get_github_versions,
     get_modrinth_projects,
     get_release_game_versions,
     latest_modrinth_versions,
 )
 
 
-class FakeResponse:
-    def __init__(self, payload, status_code=200):
-        self.payload = payload
-        self.status_code = status_code
-        self.closed = False
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(f"HTTP {self.status_code}")
-
-    def json(self):
-        return self.payload
-
-    def close(self):
-        self.closed = True
-
-
-class FakeSession:
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.calls = []
-
-    def get(self, url, **kwargs):
-        self.calls.append((url, kwargs))
-        if not self.responses:
-            raise AssertionError(f"Unexpected request: {url}")
-        return self.responses.pop(0)
+from tests.support import FakeResponse, FakeSession
 
 
 class ModMetadataTests(unittest.TestCase):
+    def test_manifest_ranges_use_real_releases_in_publication_order(self):
+        payload = {
+            "versions": [
+                {"id": "26.1.2", "type": "release", "releaseTime": "2026-04-04T00:00:00Z"},
+                {"id": "1.20.6", "type": "release", "releaseTime": "2024-04-01T00:00:00Z"},
+                {"id": "26.1", "type": "release", "releaseTime": "2026-04-01T00:00:00Z"},
+                {"id": "1.21.1", "type": "release", "releaseTime": "2024-08-01T00:00:00Z"},
+                {"id": "26.1-snapshot-1", "type": "snapshot", "releaseTime": "2026-03-01T00:00:00Z"},
+                {"id": "1.21", "type": "release", "releaseTime": "2024-06-01T00:00:00Z"},
+            ]
+        }
+        official = manifest_release_versions(payload)
+        self.assertEqual(
+            release_minecraft_versions("Carpet 99.0 for Minecraft 1.20.6-1.21.1", official),
+            {"1.20.6", "1.21", "1.21.1"},
+        )
+        self.assertEqual(release_minecraft_versions("Minecraft 26.1.x", official), {"26.1", "26.1.2"})
+        self.assertEqual(
+            release_minecraft_versions("Minecraft 26.1–26.1.2", official), {"26.1", "26.1.2"}
+        )
+        self.assertEqual(
+            release_minecraft_versions("Minecraft 1.21.1-26.1", official), {"1.21.1", "26.1"}
+        )
+        self.assertEqual(
+            release_minecraft_versions("Minecraft 1.21 and 1.21.1", official), {"1.21", "1.21.1"}
+        )
+
+    def test_range_expansion_fails_without_valid_manifest_endpoints(self):
+        for title, official in [
+            ("Minecraft 1.21-1.21.1", None),
+            ("Minecraft 1.21.x", None),
+            ("Minecraft 1.21-1.21.99", ["1.21", "1.21.1"]),
+            ("Minecraft 1.21.1-1.21", ["1.21", "1.21.1"]),
+        ]:
+            with self.subTest(title=title, official=official), self.assertRaises(ValueError):
+                release_minecraft_versions(title, official)
+
+    def test_github_title_versions_fetch_official_manifest_and_propagate_failure(self):
+        releases = [{"name": "Minecraft 1.20.6-1.21.1", "assets": [{"name": "extra.jar"}]}]
+        manifest = {
+            "versions": [
+                {"id": v, "type": "release", "releaseTime": f"2024-06-{i:02d}T00:00:00Z"}
+                for i, v in enumerate(["1.20.6", "1.21", "1.21.1"], 1)
+            ]
+        }
+        session = FakeSession([FakeResponse(releases), FakeResponse(manifest)])
+        self.assertEqual(
+            get_github_versions(session, "gnembon/carpet-extra", version_in_release=True),
+            ["1.21.1", "1.21", "1.20.6"],
+        )
+        self.assertEqual(
+            session.calls[1][0], "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+        )
+        with self.assertRaises(requests.HTTPError):
+            get_github_versions(
+                FakeSession([FakeResponse(releases), FakeResponse({}, 503)]),
+                "gnembon/carpet-extra",
+                version_in_release=True,
+            )
+
+    def test_invalid_mojang_manifest_is_rejected(self):
+        for payload in [
+            {},
+            {"versions": []},
+            {"versions": [None]},
+            {"versions": [{"type": "release", "id": "1.21", "releaseTime": "invalid"}]},
+        ]:
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                manifest_release_versions(payload)
+
+    def test_carpet_release_titles_extract_ranges_without_mod_versions(self):
+        releases = [
+            {
+                "name": "Carpet Extra 1.4.185 for Minecraft 1.21.9-1.21.11",
+                "assets": [{"name": "carpet-extra-1.21.9-1.4.185.jar"}],
+            },
+            {"name": "Carpet for Minecraft 26.3-snapshot-9", "assets": [{"name": "carpet.jar"}]},
+            {"name": "Carpet for Minecraft 99.0", "assets": []},
+        ]
+        self.assertEqual(
+            extract_github_versions(
+                releases, version_in_release=True, official_versions=["1.21.9", "1.21.10", "1.21.11"]
+            ),
+            ["1.21.11", "1.21.10", "1.21.9"],
+        )
+
     def test_fetch_json_closes_successful_and_missing_responses(self):
         successful = FakeResponse({"ok": True})
         missing = FakeResponse({}, 404)
@@ -146,13 +209,16 @@ class ModMetadataTests(unittest.TestCase):
         release_order = get_release_game_versions(session)
 
         self.assertEqual(release_order, ["1.21.11", "1.21.10"])
-        self.assertEqual(
-            latest_modrinth_versions(
-                {"game_versions": ["1.21.10", "1.21.11"]},
-                release_order,
+        for project, order, expected in [
+            ({"game_versions": ["1.21.10", "1.21.11"]}, release_order, ["1.21.11", "1.21.10"]),
+            (
+                {"game_versions": ["1.21.9", "26.1.1", "1.21.11", "24w14a"]},
+                ["26.2", "26.1.1", "1.21.11", "1.21.10", "1.21.9"],
+                ["26.1.1", "1.21.11", "1.21.9"],
             ),
-            ["1.21.11", "1.21.10"],
-        )
+        ]:
+            with self.subTest(project=project):
+                self.assertEqual(latest_modrinth_versions(project, order), expected)
 
     def test_github_versions_are_filtered_deduplicated_and_sorted(self):
         releases = [
@@ -163,6 +229,7 @@ class ModMetadataTests(unittest.TestCase):
                     {"name": "duplicate-mc1.21.11.jar"},
                     {"name": "mod-mc26.1.1-fabric.jar"},
                     {"name": "ignored-mc99.0.zip"},
+                    {"name": "tis-mc26.3-snapshot-2.jar"},
                     {"name": "sources.jar"},
                 ]
             }

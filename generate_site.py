@@ -15,6 +15,7 @@ from mod_metadata import (
     extract_github_versions,
     fetch_json,
     get_github_versions,
+    get_mojang_release_versions,
     get_modrinth_projects,
     get_release_game_versions,
     latest_modrinth_versions,
@@ -42,6 +43,11 @@ def collect_mod_entries(config: dict, session, github_token: str | None = None) 
     mod_ids = [mod["id"] for mod in mods]
     projects = get_modrinth_projects(session, mod_ids)
     release_order = get_release_game_versions(session)
+    official_versions = (
+        get_mojang_release_versions(session)
+        if any(mod.get("versionInRelease") for mod in mods)
+        else None
+    )
     entries = []
 
     for mod in mods:
@@ -52,12 +58,26 @@ def collect_mod_entries(config: dict, session, github_token: str | None = None) 
         if mod.get("type") == "modrinth":
             versions = latest_modrinth_versions(project, release_order)
             link = f"https://modrinth.com/mod/{quote(mod_id, safe='')}"
-        elif mod.get("type") == "github" and mod.get("versionInFileName") and mod.get("repo"):
-            versions = get_github_versions(session, mod["repo"], github_token)
+        elif (
+            mod.get("type") == "github"
+            and (mod.get("versionInFileName") or mod.get("versionInRelease"))
+            and mod.get("repo")
+        ):
+            versions = get_github_versions(
+                session,
+                mod["repo"],
+                github_token,
+                version_in_release=bool(mod.get("versionInRelease")),
+                official_versions=official_versions,
+            )
             link = f"https://github.com/{quote(mod['repo'], safe='/')}"
         else:
             versions = []
-            link = f"https://github.com/{quote(mod.get('repo', ''), safe='/')}" if mod.get("repo") else ""
+            link = (
+                f"https://github.com/{quote(mod.get('repo', ''), safe='/')}"
+                if mod.get("repo")
+                else ""
+            )
 
         entries.append(ModEntry(name=name, url=link, versions=versions))
 

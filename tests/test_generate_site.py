@@ -1,86 +1,91 @@
 import tempfile
 import unittest
+
+import yaml
 from datetime import datetime, timezone
 from pathlib import Path
-
-import requests
 
 from generate_site import (
     ModEntry,
     collect_mod_entries,
-    extract_github_versions,
+    load_config,
     generate_site,
-    latest_modrinth_versions,
     render_page,
 )
 
 
-class FakeResponse:
-    def __init__(self, payload, status_code=200):
-        self.payload = payload
-        self.status_code = status_code
-        self.closed = False
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.HTTPError(f"HTTP {self.status_code}")
-
-    def json(self):
-        return self.payload
-
-    def close(self):
-        self.closed = True
-
-
-class FakeSession:
-    def __init__(self, responses):
-        self.responses = responses
-
-    def get(self, url, **kwargs):
-        for url_part, response in self.responses:
-            if url_part in url:
-                return response
-        raise AssertionError(f"Unexpected request: {url}")
+from tests.support import FakeResponse, RoutedSession as FakeSession
 
 
 class GenerateSiteTests(unittest.TestCase):
-    def test_latest_modrinth_versions_follow_release_order(self):
-        project = {"game_versions": ["1.21.9", "26.1.1", "1.21.11", "24w14a"]}
-        release_order = ["26.2", "26.1.1", "1.21.11", "1.21.10", "1.21.9"]
-        self.assertEqual(
-            latest_modrinth_versions(project, release_order),
-            ["26.1.1", "1.21.11", "1.21.9"],
+    def test_catalogue_carpet_entries_use_their_github_releases(self):
+        config = load_config(Path(__file__).resolve().parents[1] / "mods.yaml")
+        mods = [mod for mod in config["mods"] if mod["id"].startswith("carpet")]
+        self.assertEqual(len(mods), 4)
+        self.assertTrue(all(mod["type"] == "github" for mod in mods))
+        session = FakeSession(
+            [
+                ("/projects", FakeResponse([])),
+                ("/tag/game_version", FakeResponse([])),
+                (
+                    "version_manifest_v2.json",
+                    FakeResponse(
+                        {
+                            "versions": [
+                                {
+                                    "id": v,
+                                    "type": "release",
+                                    "releaseTime": f"2026-01-{i:02d}T00:00:00Z",
+                                }
+                                for i, v in enumerate(["1.21.9", "1.21.10", "1.21.11"], 1)
+                            ]
+                        }
+                    ),
+                ),
+                (
+                    "/repos/gnembon/fabric-carpet/releases",
+                    FakeResponse(
+                        [
+                            {
+                                "name": "Carpet for Minecraft 1.21.11",
+                                "assets": [{"name": "fabric-carpet-1.21.11.jar"}],
+                            }
+                        ]
+                    ),
+                ),
+                (
+                    "/repos/gnembon/carpet-extra/releases",
+                    FakeResponse(
+                        [
+                            {
+                                "name": "Carpet Extra for Minecraft 1.21.9-1.21.11",
+                                "assets": [{"name": "carpet-extra-1.21.9.jar"}],
+                            }
+                        ]
+                    ),
+                ),
+                (
+                    "/repos/Minecraft-AMS/Carpet-AMS-Addition/releases",
+                    FakeResponse([{"assets": [{"name": "carpet-ams-addition-v26.2-mc1.21.11.jar"}]}]),
+                ),
+                (
+                    "/repos/TISUnion/Carpet-TIS-Addition/releases",
+                    FakeResponse([{"assets": [{"name": "carpet-tis-addition-v1.82.0-mc1.21.11.jar"}]}]),
+                ),
+            ]
         )
+        entries = collect_mod_entries({"mods": mods}, session)
+        for mod, entry in zip(mods, entries):
+            self.assertEqual(entry.url, "https://github.com/" + mod["repo"])
+            self.assertEqual(entry.versions[0], "1.21.11")
+        self.assertEqual(entries[2].versions, ["1.21.11", "1.21.10", "1.21.9"])
 
-    def test_github_versions_are_filtered_deduplicated_and_sorted(self):
-        releases = [
-            {
-                "assets": [
-                    {"name": "mod-v1-mc1.21.9.jar"},
-                    {"name": "mod-v2-mc1.21.11.jar"},
-                    {"name": "mod-v2-mc1.21.11.jar"},
-                    {"name": "mod-v3-mc26.1.1-fabric.jar"},
-                    {"name": "mod-v3-mc99.0.zip"},
-                    {"name": "sources.jar"},
-                ]
-            }
-        ]
-        self.assertEqual(
-            extract_github_versions(releases),
-            ["26.1.1", "1.21.11", "1.21.9"],
-        )
-
-    def test_collect_entries_uses_title_and_falls_back_to_id(self):
+    def test_generate_site_preserves_names_versions_links_and_stylesheet(self):
         config = {
             "mods": [
                 {"id": "known", "type": "modrinth"},
                 {"id": "missing", "type": "modrinth"},
-                {
-                    "id": "github-mod",
-                    "type": "github",
-                    "repo": "owner/repo",
-                    "versionInFileName": True,
-                },
+                {"id": "github-mod", "type": "github", "repo": "owner/repo", "versionInFileName": True},
             ]
         }
         session = FakeSession(
@@ -128,7 +133,29 @@ class GenerateSiteTests(unittest.TestCase):
             ]
         )
 
-        entries = collect_mod_entries(config, session)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path = root / "mods.yaml"
+            template_path = root / "template.html"
+            stylesheet_path = root / "style.css"
+            output_dir = root / "_site"
+            config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+            template_path.write_text("{{UPDATED_AT}}{{MOD_COUNT}}{{MOD_ROWS}}", encoding="utf-8")
+            stylesheet_path.write_text("body {}", encoding="utf-8")
+            entries = generate_site(
+                config_path,
+                template_path,
+                stylesheet_path,
+                output_dir,
+                session=session,
+                generated_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
+            )
+            page = (output_dir / "index.html").read_text(encoding="utf-8")
+            for name in ["Known Mod", "missing", "GitHub Mod Name"]:
+                self.assertIn(name, page)
+            self.assertIn('href="https://github.com/owner/repo"', page)
+            self.assertIn('href="https://modrinth.com/mod/known"', page)
+            self.assertEqual((output_dir / "style.css").read_text(), "body {}")
 
         self.assertEqual([entry.name for entry in entries], ["Known Mod", "missing", "GitHub Mod Name"])
         self.assertEqual(entries[0].versions, ["1.21.11"])
@@ -170,69 +197,6 @@ class GenerateSiteTests(unittest.TestCase):
         self.assertIn("&lt;Unsafe &amp; Mod&gt;", rendered)
         self.assertIn("a=1&amp;b=&quot;2&quot;", rendered)
         self.assertIn("暂无版本信息", rendered)
-
-    def test_generate_site_writes_static_page_and_stylesheet(self):
-        config = {"mods": [{"id": "known", "type": "modrinth"}]}
-        session = FakeSession(
-            [
-                (
-                    "/projects",
-                    FakeResponse(
-                        [
-                            {
-                                "id": "project-id",
-                                "slug": "known",
-                                "title": "Known Mod",
-                                "game_versions": ["1.21.11"],
-                            }
-                        ]
-                    ),
-                ),
-                (
-                    "/tag/game_version",
-                    FakeResponse(
-                        [
-                            {
-                                "version": "1.21.11",
-                                "version_type": "release",
-                                "date": "2025-12-09T12:00:00Z",
-                            }
-                        ]
-                    ),
-                ),
-            ]
-        )
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config_path = root / "mods.yaml"
-            template_path = root / "template.html"
-            stylesheet_path = root / "style.css"
-            output_dir = root / "_site"
-            config_path.write_text(
-                "mods:\n- id: known\n  type: modrinth\n",
-                encoding="utf-8",
-            )
-            template_path.write_text(
-                "<title>DHW Inf 模组详情</title>{{UPDATED_AT}}{{MOD_COUNT}}{{MOD_ROWS}}",
-                encoding="utf-8",
-            )
-            stylesheet_path.write_text("body {}", encoding="utf-8")
-
-            generate_site(
-                config_path,
-                template_path,
-                stylesheet_path,
-                output_dir,
-                session=session,
-                generated_at=datetime(2026, 7, 17, tzinfo=timezone.utc),
-            )
-
-            page = (output_dir / "index.html").read_text(encoding="utf-8")
-            self.assertIn("Known Mod", page)
-            self.assertNotIn("<script", page.lower())
-            self.assertEqual((output_dir / "style.css").read_text(), "body {}")
-
 
 if __name__ == "__main__":
     unittest.main()

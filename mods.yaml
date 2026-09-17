@@ -7,13 +7,21 @@ mods:
 - id: anti-xray
   type: modrinth
 - id: carpet
-  type: modrinth
+  type: github
+  repo: gnembon/fabric-carpet
+  versionInRelease: true
 - id: carpet-ams-addition
-  type: modrinth
+  type: github
+  repo: Minecraft-AMS/Carpet-AMS-Addition
+  versionInFileName: true
 - id: carpet-extra
-  type: modrinth
+  type: github
+  repo: gnembon/carpet-extra
+  versionInRelease: true
 - id: carpet-tis-addition
-  type: modrinth
+  type: github
+  repo: TISUnion/Carpet-TIS-Addition
+  versionInFileName: true
 - id: debugify
   type: modrinth
 - id: bluemap
