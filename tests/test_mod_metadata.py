@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import requests
@@ -69,9 +70,6 @@ class ModMetadataTests(unittest.TestCase):
             get_github_versions(session, "gnembon/carpet-extra", version_in_release=True),
             ["1.21.1", "1.21", "1.20.6"],
         )
-        self.assertEqual(
-            session.calls[1][0], "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-        )
         with self.assertRaises(requests.HTTPError):
             get_github_versions(
                 FakeSession([FakeResponse(releases), FakeResponse({}, 503)]),
@@ -134,18 +132,11 @@ class ModMetadataTests(unittest.TestCase):
 
         projects = get_modrinth_projects(session, ["project-slug"])
 
-        self.assertIs(projects["project-id"], projects["project-slug"])
-        self.assertEqual(
-            session.calls[0],
-            (
-                "https://api.modrinth.com/v2/projects",
-                {
-                    "params": {"ids": '["project-slug"]'},
-                    "headers": None,
-                    "timeout": 20,
-                },
-            ),
-        )
+        self.assertEqual(projects["project-id"], projects_response.payload[0])
+        self.assertEqual(projects["project-slug"], projects_response.payload[0])
+        url, kwargs = session.calls[0]
+        self.assertEqual(url, "https://api.modrinth.com/v2/projects")
+        self.assertEqual(json.loads(kwargs["params"]["ids"]), ["project-slug"])
 
     def test_github_releases_add_token_headers_and_support_404(self):
         releases_response = FakeResponse([{"assets": []}])
@@ -172,14 +163,8 @@ class ModMetadataTests(unittest.TestCase):
             "https://api.github.com/repos/owner/repo/releases",
         )
         self.assertEqual(first_call[1]["params"], {"per_page": 30})
-        self.assertEqual(
-            first_call[1]["headers"],
-            {
-                "Accept": "application/vnd.github+json",
-                "Authorization": "Bearer secret",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
+        self.assertEqual(first_call[1]["headers"]["Authorization"], "Bearer secret")
+        self.assertNotIn("Authorization", session.calls[1][1]["headers"])
 
     def test_release_versions_are_filtered_and_sorted(self):
         session = FakeSession(

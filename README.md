@@ -65,7 +65,9 @@ python3 -m unittest discover -s tests -v
 python3 generate_site.py
 ```
 
-测试按职责划分：`test_mod_metadata.py` 验证版本选择、manifest 和 HTTP 错误处理；`test_generate_site.py` 验证目录接线、生成文件及 HTML 转义。HTTP 替身集中在 `tests/support.py`，不重复测试导入别名或固定样式/文案。
+测试按职责划分：`test_mod_metadata.py` 验证版本选择、manifest 和 HTTP 错误处理；`test_generate_site.py` 使用独立的测试数据验证生成文件及 HTML 转义。HTTP 替身集中在 `tests/support.py`；测试不读取实际的 `mods.yaml`，不固定模组数量、选择或顺序，也不固定样式/文案。
+
+Tests use isolated fixtures rather than the live `mods.yaml`, so adding, removing, or reordering catalogue entries does not require test changes.
 
 生成结果位于 `_site/`，页面中的更新时间采用 UTC+8。GitHub Actions 会在推送到 `main`、手动运行以及每天 03:17 UTC 时重新测试、生成并部署页面。
 
