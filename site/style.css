@@ -1,8 +1,40 @@
+/* DHW Inf 模组目录 — a printed catalogue, not a dashboard.
+   Two columns: the mod, and the release versions it supports.
+   The newest version is the only coloured thing on the page, so a dark
+   column of them reads straight down the list. */
+
 :root {
   color-scheme: light;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
-  color: #202124;
-  background: #f6f7f8;
+
+  /* Paper stock, warm and barely tinted */
+  --paper: oklch(0.986 0.004 85);
+
+  --ink: oklch(0.24 0.008 80);
+  --ink-muted: oklch(0.49 0.011 80); /* measured 5.99:1 on paper */
+
+  --rule: oklch(0.92 0.004 80); /* hairlines between records */
+  --rule-firm: oklch(0.78 0.006 80); /* the rule under the column headings */
+
+  /* Deep petrol. One meaning only: the version you want. It has to hold its
+     own against 19 muted neighbours, so the chroma is deliberately not timid. */
+  --accent: oklch(0.44 0.085 205); /* measured 7.1:1 on paper */
+
+  /* 1-4-9 rhythm. Every gap, pad and radius comes from here. */
+  --u1: 4px;
+  --u2: 8px;
+  --u4: 16px;
+  --u9: 36px;
+
+  /* One version lane. Fixed and equal across rows so 26.2 lines up with
+     26.2 all the way down, whatever the row above it happened to contain. */
+  --lane: 4.25rem;
+  --lane-gap: var(--u2);
+  --versions: calc(3 * var(--lane) + 2 * var(--lane-gap));
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
   font-synthesis: none;
 }
 
@@ -12,113 +44,244 @@
 
 body {
   margin: 0;
-  background: #f6f7f8;
+  background: var(--paper);
 }
 
+/* Narrow on purpose: the two columns are a pair, and a wider measure pulls
+   the versions away from the names they belong to. */
 .page {
-  width: min(100% - 24px, 880px);
-  margin: 32px auto;
+  width: min(100% - 2 * var(--u9), 44rem);
+  margin: var(--u9) auto calc(2 * var(--u9));
 }
 
-.page-header {
-  margin-bottom: 20px;
+/* ---------- Head: title, with the datestamp directly under it ---------- */
+
+/* No rule here. The head is not a separate band any more: the readiness
+   block below it closes with the page's first rule, so a rule under the
+   title would only be a second line doing the same job. */
+.head {
+  display: grid;
+  gap: var(--u1);
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(1.55rem, 4vw, 2rem);
+  font-size: 1.5rem;
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
-.updated-at,
-footer {
-  margin: 7px 0 0;
-  color: #667085;
-  font-size: 0.82rem;
+.head__stamp {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.column-headings,
+/* ---------- Catalogue: two columns, one record per rule ---------- */
+
+.catalogue {
+  margin-top: var(--u9);
+  container-type: inline-size;
+  container-name: catalogue;
+}
+
+/* ---------- Readiness: a summary band over the version lanes ---------- */
+
+/* Same two columns and the same three lanes as the rows below, so each
+   percentage sits directly above the version column it summarises. This band
+   is also the table head: it names the version columns, which is why the
+   catalogue needs no separate column-heading row. */
+.readiness,
 .mod-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(280px, auto);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) var(--versions);
+  gap: var(--u4);
   align-items: center;
 }
 
-.column-headings {
-  padding: 0 14px 8px;
-  color: #667085;
-  font-size: 0.78rem;
-  font-weight: 600;
+.readiness {
+  /* Bottom-aligned so the catalogue total lands on the same baseline as the
+     compatibility shares it is the denominator of. */
+  align-items: end;
+  padding-bottom: var(--u2);
+  border-bottom: 1px solid var(--rule-firm);
 }
 
-.mod-list,
-.versions {
+/* The two figures on the page, the total and each share, are one treatment. */
+.readiness__num,
+.readiness__ratio {
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.readiness__total {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.1;
+}
+
+.readiness__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lane-gap);
+  grid-column: 2;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.readiness__item {
+  display: grid;
+  gap: var(--u1);
+}
+
+.readiness__version {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.mods {
+  margin-top: var(--u9);
+}
+
 .mod-list {
-  overflow: hidden;
-  border: 1px solid #dfe3e8;
-  border-radius: 8px;
-  background: #fff;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+/* Last row keeps its rule: the catalogue closes instead of trailing off. */
 .mod-row {
+  position: relative;
   min-height: 48px;
-  padding: 9px 14px;
-  border-bottom: 1px solid #eceff2;
+  padding-block: var(--u2);
+  border-bottom: 1px solid var(--rule);
 }
 
-.mod-row:last-child {
-  border-bottom: 0;
-}
+/* ---------- The record's name: the row's whole hit area ---------- */
 
 .mod-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: #175cd3;
-  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
   line-height: 1.35;
-  text-decoration: none;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: var(--rule-firm);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
-.mod-name:focus-visible {
-  outline: 2px solid #175cd3;
+/* Stretched over the row, so the pointer and the thumb both get 48px. */
+a.mod-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.mod-row:has(a.mod-name):hover .mod-name {
+  text-decoration-color: currentColor;
+}
+
+.mod-row:has(a.mod-name:active) .mod-name {
+  color: var(--accent);
+}
+
+a.mod-name:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 2px;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .mod-name {
+    transition: text-decoration-color 120ms ease;
+  }
+}
+
+/* ---------- The record's versions: three equal lanes ---------- */
+
 .versions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
-}
-
-.version {
-  padding: 3px 7px;
-  border: 1px solid #d8dee6;
-  border-radius: 5px;
-  background: #f8fafc;
-  color: #344054;
-  font-size: 0.78rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lane-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
-  line-height: 1.25;
-  white-space: nowrap;
 }
 
-.no-versions {
-  color: #8a94a3;
-  font-size: 0.8rem;
+.v {
+  color: var(--ink-muted);
 }
 
-footer {
-  margin-top: 10px;
-  text-align: right;
+/* Weight carries this everywhere, colour only where colour exists. */
+.v--latest {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.v-empty {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+/* ---------- Recompose on the catalogue's own width ---------- */
+
+@container catalogue (max-width: 30rem) {
+  .readiness {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .readiness__list {
+    grid-column: 1;
+    grid-template-columns: repeat(3, minmax(0, var(--lane)));
+    justify-content: start;
+  }
+
+  .mod-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--u1);
+    align-items: start;
+  }
+
+  /* Lanes keep their width instead of stretching across the row. */
+  .versions {
+    grid-template-columns: repeat(3, minmax(0, var(--lane)));
+    justify-content: start;
+  }
+
+  .v-empty {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .page {
+    width: min(100% - 2 * var(--u4), 44rem);
+    margin: var(--u4) auto calc(2 * var(--u9));
+  }
+}
+
+/* Forced colours drops the accent, so the weight has to hold alone. */
+@media (forced-colors: active) {
+  a.mod-name:focus-visible {
+    outline-color: CanvasText;
+  }
 }
 
 .visually-hidden {
@@ -131,30 +294,4 @@ footer {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-@media (max-width: 600px) {
-  .page {
-    width: min(100% - 20px, 880px);
-    margin: 22px auto;
-  }
-
-  .page-header {
-    margin-bottom: 16px;
-  }
-
-  .column-headings {
-    display: none;
-  }
-
-  .mod-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 7px;
-    min-height: 0;
-    padding: 10px 12px;
-  }
-
-  .versions {
-    justify-content: flex-start;
-  }
 }

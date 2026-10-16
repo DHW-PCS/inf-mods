@@ -11,16 +11,16 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from mod_metadata import (
+    ReleaseCatalogue,
     create_session,
-    extract_github_versions,
-    fetch_json,
     get_github_versions,
-    get_mojang_release_versions,
     get_modrinth_projects,
-    get_release_game_versions,
-    latest_modrinth_versions,
-    minecraft_version_key,
+    load_release_catalogue,
+    modrinth_supported_versions,
 )
+
+
+DISPLAY_VERSIONS = 3
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,21 @@ class ModEntry:
     name: str
     url: str
     versions: list[str]
+
+
+@dataclass(frozen=True)
+class VersionReadiness:
+    """How much of the catalogue is on board for one Minecraft release."""
+
+    version: str
+    supported: int
+    total: int
+
+    @property
+    def percent(self) -> int:
+        if not self.total:
+            return 0
+        return round(self.supported / self.total * 100)
 
 
 def load_config(path: Path) -> dict:
@@ -38,16 +53,15 @@ def load_config(path: Path) -> dict:
     return config
 
 
-def collect_mod_entries(config: dict, session, github_token: str | None = None) -> list[ModEntry]:
+def collect_mod_entries(
+    config: dict,
+    session,
+    catalogue: ReleaseCatalogue,
+    github_token: str | None = None,
+) -> list[ModEntry]:
     mods = config["mods"]
     mod_ids = [mod["id"] for mod in mods]
     projects = get_modrinth_projects(session, mod_ids)
-    release_order = get_release_game_versions(session)
-    official_versions = (
-        get_mojang_release_versions(session)
-        if any(mod.get("versionInRelease") for mod in mods)
-        else None
-    )
     entries = []
 
     for mod in mods:
@@ -56,7 +70,7 @@ def collect_mod_entries(config: dict, session, github_token: str | None = None) 
         name = project.get("title", mod_id) if project else mod_id
 
         if mod.get("type") == "modrinth":
-            versions = latest_modrinth_versions(project, release_order)
+            versions = modrinth_supported_versions(project, catalogue)
             link = f"https://modrinth.com/mod/{quote(mod_id, safe='')}"
         elif (
             mod.get("type") == "github"
@@ -66,9 +80,9 @@ def collect_mod_entries(config: dict, session, github_token: str | None = None) 
             versions = get_github_versions(
                 session,
                 mod["repo"],
+                catalogue,
                 github_token,
                 version_in_release=bool(mod.get("versionInRelease")),
-                official_versions=official_versions,
             )
             link = f"https://github.com/{quote(mod['repo'], safe='/')}"
         else:
@@ -97,24 +111,70 @@ def render_mod_rows(entries: list[ModEntry]) -> str:
             name_markup = f'<span class="mod-name">{safe_name}</span>'
 
         if entry.versions:
-            version_markup = "".join(
-                f'<li class="version">{html.escape(version)}</li>'
-                for version in entry.versions
+            # Only the rows are capped; the readiness band reads the full list.
+            latest, *earlier = entry.versions[:DISPLAY_VERSIONS]
+            version_items = [
+                '<li class="v v--latest">'
+                '<span class="visually-hidden">最新支持版本 </span>'
+                f"{html.escape(latest)}</li>"
+            ]
+            version_items.extend(
+                f'<li class="v">{html.escape(version)}</li>' for version in earlier
+            )
+            versions_markup = (
+                f'<ul class="versions" aria-label="{safe_name} 支持的正式版本">'
+                f'{"".join(version_items)}</ul>'
             )
         else:
-            version_markup = '<li class="no-versions">暂无版本信息</li>'
+            versions_markup = '<p class="v-empty">暂无版本信息</p>'
 
         rows.append(
             '<li class="mod-row">'
             f"{name_markup}"
-            f'<ul class="versions" aria-label="{safe_name} 支持的最近游戏版本">'
-            f"{version_markup}</ul>"
+            f"{versions_markup}"
             "</li>"
         )
     return "\n".join(rows)
 
 
-def render_page(template: str, entries: list[ModEntry], generated_at: datetime | None = None) -> str:
+def collect_readiness(
+    releases: list[str],
+    entries: list[ModEntry],
+    limit: int = 3,
+) -> list[VersionReadiness]:
+    """The newest releases first, each with the share of the catalogue behind it."""
+    newest_first = list(reversed(releases))[:limit]
+    claimed = [set(entry.versions) for entry in entries]
+    return [
+        VersionReadiness(
+            version=version,
+            supported=sum(1 for versions in claimed if version in versions),
+            total=len(entries),
+        )
+        for version in newest_first
+    ]
+
+
+def render_readiness(readiness: list[VersionReadiness]) -> str:
+    cells = []
+    for item in readiness:
+        cells.append(
+            '<li class="readiness__item">'
+            f'<span class="readiness__version">{html.escape(item.version)}</span>'
+            '<span class="readiness__ratio">'
+            '<span class="visually-hidden">模组兼容 </span>'
+            f"{item.percent}%</span>"
+            "</li>"
+        )
+    return "\n".join(cells)
+
+
+def render_page(
+    template: str,
+    entries: list[ModEntry],
+    generated_at: datetime | None = None,
+    readiness: list[VersionReadiness] | None = None,
+) -> str:
     if generated_at is None:
         generated_at = datetime.now(ZoneInfo("Asia/Shanghai"))
     else:
@@ -122,7 +182,8 @@ def render_page(template: str, entries: list[ModEntry], generated_at: datetime |
 
     update_text = generated_at.strftime("%Y年%m月%d日 %H:%M（UTC+8）")
     return (
-        template.replace("{{MOD_ROWS}}", render_mod_rows(entries))
+        template.replace("{{READINESS}}", render_readiness(readiness or []))
+        .replace("{{MOD_ROWS}}", render_mod_rows(entries))
         .replace("{{MOD_COUNT}}", str(len(entries)))
         .replace("{{UPDATED_AT}}", html.escape(update_text))
     )
@@ -140,9 +201,13 @@ def generate_site(
 ) -> list[ModEntry]:
     config = load_config(config_path)
     session = session or create_session()
-    entries = collect_mod_entries(config, session, github_token)
+    # Fetched once and shared: every entry resolves its declarations against it,
+    # and the readiness band needs the same release list.
+    catalogue = load_release_catalogue(session)
+    entries = collect_mod_entries(config, session, catalogue, github_token)
+    readiness = collect_readiness(catalogue.versions, entries)
     template = template_path.read_text(encoding="utf-8")
-    rendered_page = render_page(template, entries, generated_at)
+    rendered_page = render_page(template, entries, generated_at, readiness)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "index.html").write_text(rendered_page, encoding="utf-8")

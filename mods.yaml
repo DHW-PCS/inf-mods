@@ -1,8 +1,4 @@
-mcVersion: 1.21.11 # Minecraft version
 modLoader: fabric # The mod loader to use
-mcCompatibles: # Minecraft versions that are compatible
-  - 1.21.10
-  # - 1.21.6
 mods:
 - id: anti-xray
   type: modrinth

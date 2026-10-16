@@ -35,9 +35,14 @@ class FakeSession:
 class RoutedSession:
     def __init__(self, responses):
         self.responses = responses
+        self.calls = []
 
     def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
         for url_part, response in self.responses:
             if url_part in url:
                 return response
         raise AssertionError(f"Unexpected request: {url}")
+
+    def count_requests(self, url_part):
+        return sum(1 for url, _ in self.calls if url_part in url)
