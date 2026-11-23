@@ -231,6 +231,7 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn("&lt;26.3 &amp; x&gt;", markup)
         self.assertIn("模组兼容 ", markup)
         self.assertIn("67%", markup)
+        self.assertIn("--readiness: 67", markup)
 
     def test_render_readiness_is_empty_without_releases(self):
         self.assertEqual(render_readiness([]), "")

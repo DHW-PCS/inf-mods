@@ -161,7 +161,7 @@ def render_readiness(readiness: list[VersionReadiness]) -> str:
         cells.append(
             '<li class="readiness__item">'
             f'<span class="readiness__version">{html.escape(item.version)}</span>'
-            '<span class="readiness__ratio">'
+            f'<span class="readiness__ratio" style="--readiness: {item.percent}">'
             '<span class="visually-hidden">模组兼容 </span>'
             f"{item.percent}%</span>"
             "</li>"
